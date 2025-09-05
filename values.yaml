@@ -1,0 +1,87 @@
+ads:
+  fullnameOverride: ads
+  image:
+    repository: ghcr.io/datadog/storedog/ads-java
+  service:
+    port: 3030
+backend:
+  fullnameOverride: backend
+  image:
+    repository: ghcr.io/datadog/storedog/backend
+  service:
+    port: 4000
+  initContainers:
+    - name: wait-for-db
+      image: busybox
+      command: ['sh', '-c', 'until nc -z postgres 5432; do echo waiting for postgres; sleep 2; done;']
+discounts:
+  fullnameOverride: discounts
+  image:
+    repository: ghcr.io/datadog/storedog/discounts
+  service:
+    port: 2814
+  env:
+    - name: DISCOUNTS_PORT
+      value: "2814"
+  initContainers:
+    - name: wait-for-db
+      image: busybox
+      command: ['sh', '-c', 'until nc -z postgres 5432; do echo waiting for postgres; sleep 2; done;']
+frontend:
+  fullnameOverride: frontend
+  image:
+    repository: ghcr.io/datadog/storedog/frontend
+  service:
+    port: 3000
+  initContainers:
+    - name: wait-for-backend
+      image: busybox
+      command: ['sh', '-c', 'until nc -z backend 4000; do echo waiting for backend; sleep 2; done;']
+  command: ["npm", "run", "prod"]
+service-proxy:
+  fullnameOverride: service-proxy
+  image:
+    repository: ghcr.io/datadog/storedog/nginx
+worker:
+  fullnameOverride: worker
+  image:
+    repository: ghcr.io/datadog/storedog/backend
+  env:
+    - name: REDIS_URL
+      value: redis://redis-master:6379/0
+  initContainers:
+    - name: wait-for-db
+      image: busybox
+      command: ['sh', '-c', 'until nc -z postgres 5432; do echo waiting for postgres; sleep 2; done;']
+  command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+postgresql:
+  fullnameOverride: postgres
+  auth:
+    postgresPassword: postgres
+  primary:
+    persistence:
+      enabled: false
+    initContainers:
+      - name: download-sql
+        image: curlimages/curl
+        command: ["sh", "-c"]
+        args:
+          - |
+            curl -s -o /docker-entrypoint-initdb.d/init.sql https://raw.githubusercontent.com/DataDog/storedog/refs/heads/main/services/postgres/db/restore.sql
+        volumeMounts:
+          - name: initdb-scripts
+            mountPath: /docker-entrypoint-initdb.d
+    extraVolumes:
+      - name: initdb-scripts
+        emptyDir: {}
+    extraVolumeMounts:
+      - name: initdb-scripts
+        mountPath: /docker-entrypoint-initdb.d
+redis:
+  fullnameOverride: redis
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: false
