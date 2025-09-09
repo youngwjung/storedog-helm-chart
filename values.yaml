@@ -59,6 +59,7 @@ postgresql:
   auth:
     postgresPassword: postgres
   primary:
+    resourcesPreset: medium
     persistence:
       enabled: false
     initContainers:
